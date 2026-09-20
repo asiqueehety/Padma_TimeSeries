@@ -1,0 +1,119 @@
+# ============================================================
+# Python
+# ============================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+.env
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Type checking
+.mypy_cache/
+.dmypy.json
+
+# Jupyter / IPython
+.ipynb_checkpoints/
+*.ipynb
+
+# ============================================================
+# ML / Training outputs
+# ============================================================
+
+# Saved model checkpoints (large binary files)
+outputs/checkpoints/
+
+# Generated prediction CSVs
+outputs/predictions/
+
+# Generated figures / plots
+outputs/figures/
+
+# Metrics JSONs (reproducible from training runs)
+outputs/metrics/
+
+# Baseline raw outputs
+outputs/baseline_raw/
+
+# ============================================================
+# Data files (keep directory structure, ignore raw/processed data)
+# ============================================================
+data/raw/
+data/processed/
+
+# Common data formats
+*.csv
+*.xlsx
+*.xls
+*.parquet
+*.feather
+*.hdf5
+*.h5
+*.pkl
+*.pickle
+*.npz
+*.npy
+
+# ============================================================
+# Logs & run artifacts
+# ============================================================
+*.log
+*.txt
+# Exception: keep requirements.txt and any top-level .txt docs
+!requirements.txt
+!*.md
+
+# TensorBoard logs
+runs/
+tb_logs/
+
+# ============================================================
+# OS & Editor noise
+# ============================================================
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# JetBrains IDEs
+.idea/
+*.iml
+
+# ============================================================
+# Secrets & credentials
+# ============================================================
+.env
+*.env.*
+secrets.yaml
+secrets.json
