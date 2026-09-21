@@ -1,0 +1,28 @@
+{
+    "config": {
+        "model": "GRU",
+        "input_type": "enhanced",
+        "target": "Total_Cash",
+        "window": 60,
+        "horizon": 7,
+        "hidden_size": 64,
+        "num_layers": 1,
+        "dropout": 0.2,
+        "learning_rate": 0.001,
+        "weight_decay": 0.0001,
+        "batch_size": 32,
+        "seed": 7
+    },
+    "validation": {
+        "MAE": 1656071.875,
+        "RMSE": 2775647.6264655786,
+        "MAPE": 6.693679839372635,
+        "R2": 0.48873215913772583
+    },
+    "test": {
+        "MAE": 2819206.5,
+        "RMSE": 4472475.414357468,
+        "MAPE": 14.220140874385834,
+        "R2": 0.21363329887390137
+    }
+}
