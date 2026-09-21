@@ -37,55 +37,63 @@ htmlcov/
 *.ipynb
 
 # ============================================================
-# ML / Training outputs
+# ML / Training outputs  (all output roots — catch-all pattern)
 # ============================================================
 
-# Saved model checkpoints (large binary files)
-outputs/checkpoints/
+# Catch-all: any *_outputs or outputs directory anywhere in tree
+outputs/
+archive_outputs/
+enhanced_outputs/
 
-# Generated prediction CSVs
-outputs/predictions/
-
-# Generated figures / plots
-outputs/figures/
-
-# Metrics JSONs (reproducible from training runs)
-outputs/metrics/
-
-# Baseline raw outputs
-outputs/baseline_raw/
+# Also ignore any ad-hoc output folder that follows the same naming convention
+*_outputs/
 
 # ============================================================
-# Data files (keep directory structure, ignore raw/processed data)
+# Model artefacts
+# ============================================================
+*.pt
+*.pth
+*.onnx
+*.pb
+*.h5
+*.hdf5
+*.joblib
+*.pkl
+*.pickle
+
+# ============================================================
+# Data files
 # ============================================================
 data/raw/
 data/processed/
 
-# Common data formats
+# Common data formats — do NOT commit raw/derived data
 *.csv
 *.xlsx
 *.xls
 *.parquet
 *.feather
-*.hdf5
-*.h5
-*.pkl
-*.pickle
 *.npz
 *.npy
+*.json
+# Exception: keep package / config JSONs at repo root
+!package.json
+!package-lock.json
 
 # ============================================================
-# Logs & run artifacts
+# Logs & run artefacts
 # ============================================================
 *.log
 *.txt
-# Exception: keep requirements.txt and any top-level .txt docs
+# Exceptions — keep documentation / dependency files
 !requirements.txt
-!*.md
+!README.txt
 
-# TensorBoard logs
+# TensorBoard / experiment tracking
 runs/
 tb_logs/
+mlruns/
+wandb/
 
 # ============================================================
 # OS & Editor noise
