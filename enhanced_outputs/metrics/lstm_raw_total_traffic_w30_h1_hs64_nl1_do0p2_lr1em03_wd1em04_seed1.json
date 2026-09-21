@@ -1,0 +1,28 @@
+{
+    "config": {
+        "model": "LSTM",
+        "input_type": "raw",
+        "target": "Total_Traffic",
+        "window": 30,
+        "horizon": 1,
+        "hidden_size": 64,
+        "num_layers": 1,
+        "dropout": 0.2,
+        "learning_rate": 0.001,
+        "weight_decay": 0.0001,
+        "batch_size": 32,
+        "seed": 1
+    },
+    "validation": {
+        "MAE": 1854.5665283203125,
+        "RMSE": 3068.9973932866087,
+        "MAPE": 8.426207304000854,
+        "R2": 0.49303746223449707
+    },
+    "test": {
+        "MAE": 2436.94775390625,
+        "RMSE": 4073.0910866318713,
+        "MAPE": 12.043315172195435,
+        "R2": 0.4343400001525879
+    }
+}

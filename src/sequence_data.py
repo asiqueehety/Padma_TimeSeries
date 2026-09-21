@@ -13,32 +13,18 @@ import pandas as pd
 
 RAW_SEQUENCE_FEATURES = [
 
-    # Main historical series
+    # Actual historical Padma observations
     "Total_Traffic_input",
     "Total_Cash_input",
 
-    # Historical weather
+    # Actual historical weather observations
     "temp_mean_c_input",
     "temp_max_c_input",
     "temp_min_c_input",
     "rainfall_mm_input",
     "humidity_pct_input",
     "wind_speed_kmh_input",
-
-    # Time information
-    "dow_sin",
-    "dow_cos",
-    "month_sin",
-    "month_cos",
-    "doy_sin",
-    "doy_cos",
-
-    # Missingness information
-    "padma_missing",
-    "weather_missing",
 ]
-
-
 # ============================================================
 # FEATURE-ENHANCED SEQUENTIAL FEATURES
 # ============================================================
