@@ -31,7 +31,6 @@ from src.enhanced_features import (
 
 from src.sequence_data import (
     get_sequence_features,
-    FUTURE_KNOWN_FEATURES,
 )
 
 from src.models import (
@@ -40,7 +39,7 @@ from src.models import (
 
 
 # ============================================================
-# FINAL MODEL CONFIGURATIONS
+# FINAL FROZEN RAW MODEL CONFIGURATIONS
 # ============================================================
 
 FINAL_CONFIGS = {
@@ -49,18 +48,7 @@ FINAL_CONFIGS = {
     # 1-DAY TRAFFIC
     # --------------------------------------------------------
     ("Total_Traffic", 1): {
-        "model": "LSTM",
-        "window": 30,
-        "hidden_size": 64,
-        "num_layers": 1,
-        "dropout": 0.20,
-    },
-
-    # --------------------------------------------------------
-    # 1-DAY TOLL
-    # --------------------------------------------------------
-    ("Total_Cash", 1): {
-        "model": "LSTM",
+        "model": "GRU",
         "window": 14,
         "hidden_size": 96,
         "num_layers": 1,
@@ -68,25 +56,36 @@ FINAL_CONFIGS = {
     },
 
     # --------------------------------------------------------
-    # 7-DAY TRAFFIC
+    # 1-DAY CASH
     # --------------------------------------------------------
-    ("Total_Traffic", 7): {
+    ("Total_Cash", 1): {
         "model": "GRU",
-        "window": 90,
-        "hidden_size": 64,
-        "num_layers": 1,
-        "dropout": 0.10,
-    },
-
-    # --------------------------------------------------------
-    # 7-DAY TOLL
-    # --------------------------------------------------------
-    ("Total_Cash", 7): {
-        "model": "GRU",
-        "window": 60,
+        "window": 7,
         "hidden_size": 64,
         "num_layers": 1,
         "dropout": 0.20,
+    },
+
+    # --------------------------------------------------------
+    # 7-DAY TRAFFIC
+    # --------------------------------------------------------
+    ("Total_Traffic", 7): {
+        "model": "LSTM",
+        "window": 7,
+        "hidden_size": 96,
+        "num_layers": 1,
+        "dropout": 0.30,
+    },
+
+    # --------------------------------------------------------
+    # 7-DAY CASH
+    # --------------------------------------------------------
+    ("Total_Cash", 7): {
+        "model": "LSTM",
+        "window": 7,
+        "hidden_size": 96,
+        "num_layers": 1,
+        "dropout": 0.30,
     },
 }
 
@@ -98,14 +97,14 @@ SEEDS = [
 ]
 
 
-INPUT_TYPE = "enhanced"
+INPUT_TYPE = "raw"
 
 LEARNING_RATE = 1e-3
 WEIGHT_DECAY = 1e-4
 
 
 # ============================================================
-# BUILD EXPERIMENT NAME EXACTLY LIKE train_model.py
+# BUILD EXPERIMENT NAME
 # ============================================================
 
 def build_experiment_name(
@@ -163,7 +162,7 @@ def build_experiment_name(
 
 
 # ============================================================
-# LOAD TORCH CHECKPOINT
+# LOAD CHECKPOINT
 # ============================================================
 
 def load_checkpoint(
@@ -190,7 +189,7 @@ def load_checkpoint(
 
 
 # ============================================================
-# GET ONE EXACT TIME-SERIES INPUT
+# PREPARE ONE RAW HISTORICAL SEQUENCE
 # ============================================================
 
 def prepare_single_input(
@@ -201,11 +200,16 @@ def prepare_single_input(
     window,
 ):
 
+    # --------------------------------------------------------
+    # Final strict raw feature list
+    # --------------------------------------------------------
+
     feature_columns = (
         get_sequence_features(
-            INPUT_TYPE
+            "raw"
         )
     )
+
 
     df = (
         df.sort_values("Date")
@@ -216,9 +220,18 @@ def prepare_single_input(
         df["Date"]
     )
 
+
     target_date = pd.Timestamp(
         target_date
     )
+
+
+    # --------------------------------------------------------
+    # Origin date:
+    #
+    # H1 -> one day before target
+    # H7 -> seven days before target
+    # --------------------------------------------------------
 
     origin_date = (
         target_date
@@ -228,6 +241,7 @@ def prepare_single_input(
         )
     )
 
+
     start_date = (
         origin_date
         -
@@ -236,31 +250,10 @@ def prepare_single_input(
         )
     )
 
-    # --------------------------------------------------------
-    # Find target-date row
-    # --------------------------------------------------------
 
-    target_rows = df[
-        df["Date"] == target_date
-    ]
-
-    if len(target_rows) == 0:
-
-        raise ValueError(
-            "\nForecast date is not present in the prepared "
-            "daily dataframe.\n\n"
-            "For this current demonstration script, choose "
-            "a date already present in your dataset.\n"
-        )
-
-    target_row = (
-        target_rows
-        .iloc[0]
-    )
-
-    # --------------------------------------------------------
-    # Select historical window
-    # --------------------------------------------------------
+    # ========================================================
+    # SELECT HISTORICAL WINDOW ONLY
+    # ========================================================
 
     sequence_df = df[
         (
@@ -272,25 +265,30 @@ def prepare_single_input(
         )
     ].copy()
 
+
     sequence_df = (
         sequence_df
         .sort_values("Date")
         .reset_index(drop=True)
     )
 
+
     if len(sequence_df) != window:
 
         raise ValueError(
+
             f"\nExpected {window} historical days, "
-            f"but found {len(sequence_df)}.\n"
-            f"Required range: "
+            f"but found {len(sequence_df)}.\n\n"
+
+            f"Required historical range:\n"
             f"{start_date.date()} -> "
-            f"{origin_date.date()}"
+            f"{origin_date.date()}\n"
         )
 
-    # --------------------------------------------------------
-    # Verify every day is consecutive
-    # --------------------------------------------------------
+
+    # ========================================================
+    # VERIFY STRICT CONSECUTIVE DAYS
+    # ========================================================
 
     expected_dates = pd.date_range(
         start=start_date,
@@ -298,12 +296,14 @@ def prepare_single_input(
         freq="D",
     )
 
+
     actual_dates = (
         sequence_df["Date"]
         .to_numpy(
             dtype="datetime64[ns]"
         )
     )
+
 
     if not np.array_equal(
         actual_dates,
@@ -317,28 +317,33 @@ def prepare_single_input(
             "strictly consecutive daily data."
         )
 
-    # --------------------------------------------------------
-    # Build sequence:
+
+    # ========================================================
+    # BUILD:
     #
-    # 1 x window x features
-    # --------------------------------------------------------
+    # 1 x window x raw_features
+    # ========================================================
 
     sequence = (
+
         sequence_df[
             feature_columns
         ]
+
         .to_numpy(
             dtype=np.float32
         )
     )
+
 
     if np.isnan(
         sequence
     ).any():
 
         raise ValueError(
-            "Historical input contains NaN values."
+            "Historical raw sequence contains NaN values."
         )
+
 
     sequence = sequence[
         np.newaxis,
@@ -346,58 +351,40 @@ def prepare_single_input(
         :
     ]
 
-    # --------------------------------------------------------
-    # Target-date information known in advance
-    # --------------------------------------------------------
 
-    future_features = (
-        target_row[
-            FUTURE_KNOWN_FEATURES
-        ]
-        .to_numpy(
-            dtype=np.float32
-        )
-    )
-
-    if np.isnan(
-        future_features
-    ).any():
-
-        raise ValueError(
-            "Target-date future-known features "
-            "contain NaN values."
-        )
-
-    future_features = (
-        future_features[
-            np.newaxis,
-            :
-        ]
-    )
-
-    # --------------------------------------------------------
-    # Actual target is ONLY for display/comparison.
+    # ========================================================
+    # ACTUAL TARGET
     #
-    # It is NOT included in model input.
-    # --------------------------------------------------------
+    # Only for comparison.
+    # Never supplied to the network.
+    # ========================================================
 
-    actual_value = (
-        target_row[target]
-    )
+    target_rows = df[
+        df["Date"] == target_date
+    ]
 
-    if pd.isna(
-        actual_value
-    ):
-        actual_value = None
 
-    else:
-        actual_value = float(
-            actual_value
+    actual_value = None
+
+
+    if len(target_rows) > 0:
+
+        value = (
+            target_rows
+            .iloc[0][target]
         )
+
+        if not pd.isna(
+            value
+        ):
+
+            actual_value = float(
+                value
+            )
+
 
     return (
         sequence,
-        future_features,
         actual_value,
         start_date,
         origin_date,
@@ -412,7 +399,6 @@ def prepare_single_input(
 
 def predict_one_seed(
     sequence,
-    future_features,
     feature_columns,
     config,
     target,
@@ -450,6 +436,7 @@ def predict_one_seed(
         )
     )
 
+
     checkpoint_dir = (
         ROOT
         / "outputs"
@@ -457,48 +444,55 @@ def predict_one_seed(
         / experiment_name
     )
 
+
     model_path = (
         checkpoint_dir
         / "model.pt"
     )
+
 
     sequence_scaler_path = (
         checkpoint_dir
         / "sequence_scaler.joblib"
     )
 
-    future_scaler_path = (
-        checkpoint_dir
-        / "future_scaler.joblib"
-    )
 
     target_scaler_path = (
         checkpoint_dir
         / "target_scaler.joblib"
     )
 
+
+    # --------------------------------------------------------
+    # Strict raw models do NOT use future_scaler.joblib
+    # --------------------------------------------------------
+
     required_files = [
         model_path,
         sequence_scaler_path,
-        future_scaler_path,
         target_scaler_path,
     ]
+
 
     for file_path in required_files:
 
         if not file_path.exists():
 
             raise FileNotFoundError(
-                "\nRequired trained-model file "
+
+                "\nRequired final model file "
                 "was not found:\n"
+
                 f"{file_path}\n\n"
-                "Make sure the final training run "
-                "for this seed exists."
+
+                "Make sure the final raw training "
+                "run exists for this seed."
             )
 
-    # --------------------------------------------------------
-    # Load saved training objects
-    # --------------------------------------------------------
+
+    # ========================================================
+    # LOAD MODEL OBJECTS
+    # ========================================================
 
     checkpoint = (
         load_checkpoint(
@@ -507,17 +501,13 @@ def predict_one_seed(
         )
     )
 
+
     sequence_scaler = (
         joblib.load(
             sequence_scaler_path
         )
     )
 
-    future_scaler = (
-        joblib.load(
-            future_scaler_path
-        )
-    )
 
     target_scaler = (
         joblib.load(
@@ -525,15 +515,39 @@ def predict_one_seed(
         )
     )
 
-    # --------------------------------------------------------
-    # Make sure current features match training features
-    # --------------------------------------------------------
+
+    # ========================================================
+    # SAFETY CHECKS
+    # ========================================================
+
+    if checkpoint.get(
+        "input_type"
+    ) != "raw":
+
+        raise RuntimeError(
+            "Checkpoint is not a raw-input model."
+        )
+
+
+    if checkpoint.get(
+        "future_size",
+        0
+    ) != 0:
+
+        raise RuntimeError(
+
+            "This checkpoint contains future-known "
+            "features, but the final project requires "
+            "strict raw historical input only."
+        )
+
 
     saved_features = (
         checkpoint[
             "feature_columns"
         ]
     )
+
 
     if list(
         saved_features
@@ -542,17 +556,20 @@ def predict_one_seed(
     ):
 
         raise RuntimeError(
-            "Current feature order does not match "
-            "the feature order used during training."
+
+            "Current raw feature order does not match "
+            "the features used during training."
         )
 
-    # --------------------------------------------------------
-    # Scale exactly the same way as training
-    # --------------------------------------------------------
+
+    # ========================================================
+    # SCALE SEQUENCE EXACTLY LIKE TRAINING
+    # ========================================================
 
     original_shape = (
         sequence.shape
     )
+
 
     sequence_flat = (
         sequence.reshape(
@@ -561,32 +578,28 @@ def predict_one_seed(
         )
     )
 
+
     sequence_scaled = (
+
         sequence_scaler
+
         .transform(
             sequence_flat
         )
+
         .reshape(
             original_shape
         )
+
         .astype(
             np.float32
         )
     )
 
-    future_scaled = (
-        future_scaler
-        .transform(
-            future_features
-        )
-        .astype(
-            np.float32
-        )
-    )
 
-    # --------------------------------------------------------
-    # Rebuild architecture
-    # --------------------------------------------------------
+    # ========================================================
+    # REBUILD SAVED MODEL
+    # ========================================================
 
     model = SequenceRegressor(
 
@@ -619,9 +632,11 @@ def predict_one_seed(
             checkpoint[
                 "dropout"
             ],
+
     ).to(
         device
     )
+
 
     model.load_state_dict(
         checkpoint[
@@ -629,42 +644,38 @@ def predict_one_seed(
         ]
     )
 
+
     model.eval()
 
+
     sequence_tensor = (
+
         torch.tensor(
             sequence_scaled,
             dtype=torch.float32,
         )
+
         .to(
             device
         )
     )
 
-    future_tensor = (
-        torch.tensor(
-            future_scaled,
-            dtype=torch.float32,
-        )
-        .to(
-            device
-        )
-    )
 
-    # --------------------------------------------------------
-    # INFERENCE ONLY
+    # ========================================================
+    # INFERENCE
     #
+    # No future tensor.
+    # No future-known features.
     # No optimizer.
-    # No backward().
-    # No training.
-    # --------------------------------------------------------
+    # No backward.
+    # ========================================================
 
     with torch.no_grad():
 
         prediction_scaled = model(
-            sequence_tensor,
-            future_tensor,
+            sequence_tensor
         )
+
 
     prediction_scaled = (
         prediction_scaled
@@ -672,13 +683,18 @@ def predict_one_seed(
         .numpy()
     )
 
+
     prediction = (
+
         target_scaler
+
         .inverse_transform(
             prediction_scaled
         )
+
         .reshape(-1)[0]
     )
+
 
     return float(
         prediction
@@ -692,41 +708,61 @@ def predict_one_seed(
 def main(args):
 
     # --------------------------------------------------------
-    # Friendly target names
+    # Accept both short and full target names
     # --------------------------------------------------------
 
-    if args.target == "traffic":
+    if args.target in [
+        "traffic",
+        "Total_Traffic",
+    ]:
 
         target = (
             "Total_Traffic"
         )
 
-    elif args.target == "cash":
+        target_short = (
+            "traffic"
+        )
+
+
+    elif args.target in [
+        "cash",
+        "Total_Cash",
+    ]:
 
         target = (
             "Total_Cash"
         )
 
+        target_short = (
+            "cash"
+        )
+
+
     else:
 
         raise ValueError(
-            "target must be traffic or cash"
+            "Target must be traffic or cash."
         )
+
 
     key = (
         target,
         args.horizon,
     )
 
+
     if key not in FINAL_CONFIGS:
 
         raise ValueError(
-            "Only horizon 1 and 7 are supported."
+            "Only horizons 1 and 7 are supported."
         )
+
 
     config = (
         FINAL_CONFIGS[key]
     )
+
 
     device = torch.device(
         "cuda"
@@ -734,21 +770,27 @@ def main(args):
         else "cpu"
     )
 
+
     print(
         "\n"
         + "=" * 72
     )
 
     print(
-        "PADMA BRIDGE SINGLE FORECAST"
+        "PADMA BRIDGE FINAL RAW FORECAST"
     )
 
     print(
         "=" * 72
     )
 
+
     print(
         f"\nDevice       : {device}"
+    )
+
+    print(
+        f"Input type   : RAW"
     )
 
     print(
@@ -779,17 +821,18 @@ def main(args):
         f"Forecast date: {args.date}"
     )
 
-    # --------------------------------------------------------
-    # Build complete feature dataframe
-    # --------------------------------------------------------
+
+    # ========================================================
+    # PREPARE DATAFRAME
+    # ========================================================
 
     df = (
         prepare_timeseries_dataframe()
     )
 
+
     (
         sequence,
-        future_features,
         actual_value,
         start_date,
         origin_date,
@@ -815,6 +858,11 @@ def main(args):
             ],
     )
 
+
+    # ========================================================
+    # DISPLAY INPUT INFORMATION
+    # ========================================================
+
     print(
         "\nINPUT SEQUENCE"
     )
@@ -822,6 +870,7 @@ def main(args):
     print(
         "-" * 72
     )
+
 
     print(
         f"Starts       : {start_date.date()}"
@@ -843,21 +892,45 @@ def main(args):
         f"Tensor shape : {sequence.shape}"
     )
 
+
+    print(
+        "\nRaw features:"
+    )
+
+    for feature in feature_columns:
+
+        print(
+            f"  - {feature}"
+        )
+
+
     print(
         "\nImportant:"
     )
 
     print(
-        f"No observations after "
-        f"{origin_date.date()} "
-        f"are used as historical input."
+        "Only historical raw observations are "
+        "supplied to the model."
     )
 
-    # --------------------------------------------------------
-    # Three saved models
-    # --------------------------------------------------------
+    print(
+        "No lag features, rolling averages, "
+        "or target-date future-known features are used."
+    )
+
+    print(
+        f"No observation after "
+        f"{origin_date.date()} "
+        f"is used as model input."
+    )
+
+
+    # ========================================================
+    # THREE-SEED PREDICTIONS
+    # ========================================================
 
     predictions = []
+
 
     print(
         "\nSEED PREDICTIONS"
@@ -867,6 +940,7 @@ def main(args):
         "-" * 72
     )
 
+
     for seed in SEEDS:
 
         prediction = (
@@ -874,9 +948,6 @@ def main(args):
 
                 sequence=
                     sequence,
-
-                future_features=
-                    future_features,
 
                 feature_columns=
                     feature_columns,
@@ -898,24 +969,28 @@ def main(args):
             )
         )
 
+
         predictions.append(
             prediction
         )
+
 
         print(
             f"Seed {seed:>2}: "
             f"{prediction:,.2f}"
         )
 
-    # --------------------------------------------------------
-    # Ensemble prediction
-    # --------------------------------------------------------
+
+    # ========================================================
+    # ENSEMBLE
+    # ========================================================
 
     ensemble_prediction = float(
         np.mean(
             predictions
         )
     )
+
 
     print(
         "\n"
@@ -929,6 +1004,7 @@ def main(args):
     print(
         "=" * 72
     )
+
 
     if target == "Total_Traffic":
 
@@ -944,10 +1020,10 @@ def main(args):
             f"{ensemble_prediction:,.2f} BDT"
         )
 
-    # --------------------------------------------------------
-    # If actual value exists, show it AFTER prediction.
-    # It was never supplied to the model.
-    # --------------------------------------------------------
+
+    # ========================================================
+    # ACTUAL VALUE — DISPLAY ONLY
+    # ========================================================
 
     if actual_value is not None:
 
@@ -957,7 +1033,9 @@ def main(args):
             ensemble_prediction
         )
 
+
         percentage_error = (
+
             absolute_error
             /
             abs(actual_value)
@@ -965,14 +1043,16 @@ def main(args):
             100
         )
 
+
         print(
             "\nACTUAL VALUE "
-            "(for evaluation only)"
+            "(evaluation only)"
         )
 
         print(
             "-" * 72
         )
+
 
         if target == "Total_Traffic":
 
@@ -998,22 +1078,28 @@ def main(args):
                 f"{absolute_error:,.2f} BDT"
             )
 
+
         print(
             f"Percentage error  : "
             f"{percentage_error:.2f}%"
         )
 
-    # --------------------------------------------------------
-    # Identify whether this date belongs to test range
-    # --------------------------------------------------------
 
-    print(
-        "\nDATA SPLIT"
-    )
+    else:
 
-    print(
-        "-" * 72
-    )
+        print(
+            "\nActual target value is not available."
+        )
+
+        print(
+            "Prediction was still produced using "
+            "the available historical sequence."
+        )
+
+
+    # ========================================================
+    # DATA SPLIT
+    # ========================================================
 
     if (
         target_date
@@ -1024,6 +1110,7 @@ def main(args):
 
         split_name = "TRAIN"
 
+
     elif (
         target_date
         <= pd.Timestamp(
@@ -1033,18 +1120,37 @@ def main(args):
 
         split_name = "VALIDATION"
 
-    else:
+
+    elif (
+        target_date
+        <= df["Date"].max()
+    ):
 
         split_name = "TEST"
 
+
+    else:
+
+        split_name = "FUTURE"
+
+
     print(
-        f"This target date belongs to: "
+        "\nDATA SPLIT"
+    )
+
+    print(
+        "-" * 72
+    )
+
+    print(
+        f"Target date category: "
         f"{split_name}"
     )
 
-    # --------------------------------------------------------
-    # Save demonstration result
-    # --------------------------------------------------------
+
+    # ========================================================
+    # SAVE PREDICTION
+    # ========================================================
 
     output_dir = (
         ROOT
@@ -1052,27 +1158,50 @@ def main(args):
         / "live_predictions"
     )
 
+
     output_dir.mkdir(
         parents=True,
         exist_ok=True
     )
 
+
     output_file = (
+
         output_dir
+
         /
+
         (
-            f"{args.target}"
+            f"{target_short}"
             f"_h{args.horizon}"
             f"_{target_date.date()}"
             f".csv"
         )
     )
 
+
     row = {
-        "target": target,
-        "model": config["model"],
-        "window": config["window"],
-        "horizon": args.horizon,
+
+        "target":
+            target,
+
+        "input_type":
+            "raw",
+
+        "model":
+            config["model"],
+
+        "window":
+            config["window"],
+
+        "horizon":
+            args.horizon,
+
+        "hidden_size":
+            config["hidden_size"],
+
+        "dropout":
+            config["dropout"],
 
         "input_start_date":
             start_date.date(),
@@ -1102,6 +1231,7 @@ def main(args):
             split_name,
     }
 
+
     pd.DataFrame(
         [row]
     ).to_csv(
@@ -1109,8 +1239,9 @@ def main(args):
         index=False
     )
 
+
     print(
-        "\nSaved demonstration output:"
+        "\nSaved prediction:"
     )
 
     print(
@@ -1126,31 +1257,51 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
 
+
     parser.add_argument(
+
         "--target",
+
         required=True,
+
         choices=[
             "traffic",
             "cash",
+            "Total_Traffic",
+            "Total_Cash",
         ],
     )
 
+
     parser.add_argument(
+
         "--horizon",
+
         required=True,
+
         type=int,
+
         choices=[
             1,
             7,
         ],
     )
 
+
     parser.add_argument(
+
         "--date",
+
         required=True,
+
         type=str,
-        help="Forecast target date in YYYY-MM-DD format.",
+
+        help=(
+            "Forecast target date "
+            "in YYYY-MM-DD format."
+        ),
     )
+
 
     args = parser.parse_args()
 

@@ -7,31 +7,26 @@ ROOT = Path(__file__).resolve().parent
 
 
 # ============================================================
-# FINAL RAW TIME-SERIES CONFIGURATIONS
+# FINAL FROZEN RAW TIME-SERIES CONFIGURATIONS
+#
+# These four configurations were selected through:
+#   1. Window sweep  (run_raw_window_sweep.py)
+#   2. Architecture tuning  (run_raw_arch_tuning.py)
+#   3. Multi-seed stability check  (summarize_raw_multiseed.py)
+#
+# Do NOT change these values — they define the final project.
 # ============================================================
 
 CONFIGS = [
 
     # --------------------------------------------------------
-    # 1-DAY TRAFFIC
+    # TRAFFIC H1
+    # GRU  |  W14  |  HS 96  |  DO 0.10
     # --------------------------------------------------------
     {
         "name": "Traffic H1",
-        "model": "LSTM",
+        "model": "GRU",
         "target": "Total_Traffic",
-        "window": 30,
-        "horizon": 1,
-        "hidden_size": 64,
-        "dropout": 0.20,
-    },
-
-    # --------------------------------------------------------
-    # 1-DAY TOLL
-    # --------------------------------------------------------
-    {
-        "name": "Cash H1",
-        "model": "LSTM",
-        "target": "Total_Cash",
         "window": 14,
         "horizon": 1,
         "hidden_size": 96,
@@ -39,29 +34,45 @@ CONFIGS = [
     },
 
     # --------------------------------------------------------
-    # 7-DAY TRAFFIC
+    # CASH H1
+    # GRU  |  W7   |  HS 64  |  DO 0.20
     # --------------------------------------------------------
     {
-        "name": "Traffic H7",
+        "name": "Cash H1",
         "model": "GRU",
-        "target": "Total_Traffic",
-        "window": 90,
-        "horizon": 7,
+        "target": "Total_Cash",
+        "window": 7,
+        "horizon": 1,
         "hidden_size": 64,
-        "dropout": 0.10,
+        "dropout": 0.20,
     },
 
     # --------------------------------------------------------
-    # 7-DAY TOLL
+    # TRAFFIC H7
+    # LSTM |  W7   |  HS 96  |  DO 0.30
+    # --------------------------------------------------------
+    {
+        "name": "Traffic H7",
+        "model": "LSTM",
+        "target": "Total_Traffic",
+        "window": 7,
+        "horizon": 7,
+        "hidden_size": 96,
+        "dropout": 0.30,
+    },
+
+    # --------------------------------------------------------
+    # CASH H7
+    # LSTM |  W7   |  HS 96  |  DO 0.30
     # --------------------------------------------------------
     {
         "name": "Cash H7",
-        "model": "GRU",
+        "model": "LSTM",
         "target": "Total_Cash",
-        "window": 60,
+        "window": 7,
         "horizon": 7,
-        "hidden_size": 64,
-        "dropout": 0.20,
+        "hidden_size": 96,
+        "dropout": 0.30,
     },
 ]
 
@@ -75,6 +86,7 @@ SEEDS = [
 
 # ============================================================
 # TRAIN EVERYTHING
+# 4 configurations × 3 seeds = 12 training runs total
 # ============================================================
 
 total_runs = (
@@ -176,7 +188,7 @@ print(
 )
 
 print(
-    "ALL RAW FINAL MODELS FINISHED"
+    "ALL FINAL RAW MODELS FINISHED"
 )
 
 print(
